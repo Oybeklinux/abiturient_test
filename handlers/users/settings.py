@@ -1,64 +1,70 @@
 from aiogram import types
 from aiogram.dispatcher import FSMContext
-from aiogram.dispatcher.filters import CommandSettings
-from aiogram.types import ParseMode
+from aiogram.dispatcher.filters import Text
+from aiogram.types import ParseMode, ContentType
 
-from filters.is_in import IsIn
-from keyboards import language_ikb, language_cb, get_phone_kb, get_main_kb
-from keyboards.default.settings import  get_settings_kb
+from handlers.users.start import send_user_info
+from keyboards import contact_kb
+from keyboards.inline.regions import get_region_ikb
+from keyboards.inline.settings import settings_ikb, settings_cb
 from loader import dp, db
-from data.texts import Texts
-from utils.set_bot_commands import set_default_commands
+from states.settings import EditState
 
 
-@dp.message_handler(CommandSettings())
-@dp.message_handler(IsIn('bsettings'))
-async def show_settings(message: types.Message):
-    await message.answer('Выберите пункт', reply_markup=get_settings_kb())
+@dp.message_handler(Text(equals="✏️Profilni o'zgartirish"))
+async def profile_edit(message: types.Message):
+    await send_user_info(chat_id=message.chat.id, user_id=message.from_user.id)
+    # user_id = message.from_user.id
+    # user = db.select_user(id=user_id)
+    # universitet = user[4] if user[4] else 'Ko\'rsatilmagan'
+    # text = (f"Quyida sizning ma'lumorlaringiz keltirilgan:\n\n"
+    #         f"*Ismingiz*: {user[1]}\n"
+    #         f"*Telefoningiz*: {user[2]}\n"
+    #         f"*Viloyatingiz*: {user[3]}\n"
+    #         f"*Universitetingiz*: {universitet}\n\n"
+    #         f"❗️Ma'lumotlarni quyidagi tugmalar orqali o'zgartiring")
+    #
+    # await message.answer(text=text, parse_mode=ParseMode.MARKDOWN,
+    #                           reply_markup=settings_ikb)
 
 
-@dp.message_handler(IsIn('bedit_name'))
-async def edit_name(message: types.Message, state:FSMContext):
-    await message.answer(text=Texts().get('tinput_name'), reply_markup=get_settings_kb())
-    await state.set_state('edit_name')
+@dp.callback_query_handler(settings_cb.filter(menu='name'))
+async def edit_name(call: types.CallbackQuery):
+    await call.answer('')
+    await call.message.answer(text="To'liq ismingizni kiriting")
+    await EditState.FIO.set()
 
 
-@dp.message_handler(IsIn('bedit_lang'))
-async def edit_language(message: types.Message, state: FSMContext):
-    text = "Выберите язык"
-    await message.answer(f'{text}', reply_markup=language_ikb)
-    await state.set_state('edit_languge')
-
-
-
-@dp.message_handler(IsIn('bsend_phone'))
-async def edit_phone(message: types.Message, state: FSMContext):
-    await state.finish()
-    await message.answer(Texts.get('bsend_phone'),
-                         reply_markup=get_phone_kb(), parse_mode=ParseMode.MARKDOWN)
-
-
-@dp.message_handler(state='edit_name')
-async def name_to_settings(message: types.Message, state: FSMContext):
+@dp.message_handler(state=EditState.FIO)
+async def update_name(message: types.Message, state:FSMContext):
     name = message.text
-    db.update_user(id=message.from_user.id, name=name)
-    text = Texts.get('name_changed')
-    await message.answer(text=text, reply_markup=get_settings_kb())
+    user_id = message.from_user.id
+    db.update_user(id=user_id, name=name)
+    await send_user_info(chat_id=message.chat.id, user_id=message.from_user.id)
     await state.finish()
 
 
-@dp.callback_query_handler(language_cb.filter(), state='edit_languge')
-async def lang_to_settings(callback: types.CallbackQuery, state: FSMContext) -> None:
-    language = language_cb.parse(callback.data)['language']
-    db.update_user(id=callback.from_user.id, language=language)
+@dp.callback_query_handler(settings_cb.filter(menu='phone'))
+async def edit_phone(call: types.CallbackQuery):
+    await call.message.answer(text="Telefon raqamingizni yuboring", reply_markup=contact_kb)
+    await EditState.Telefon.set()
 
-    text = Texts.get('lang_changed')
-    await set_default_commands(dp)
-    await callback.message.answer(text=text, reply_markup=get_settings_kb())
+
+@dp.message_handler(content_types=ContentType.CONTACT, state=EditState.Telefon)
+async def save_contact(message: types.Message, state:FSMContext):
+    phone_number = message.contact.phone_number
+    user_id = message.from_user.id
+    db.update_user(id=user_id, phone=phone_number)
+    await send_user_info(chat_id=message.chat.id, user_id=message.from_user.id)
     await state.finish()
 
 
-@dp.message_handler(IsIn('bto_main'))
-async def back_to_main(message: types.Message):
-    await message.answer(text=Texts.get('tmain_menu'), reply_markup=get_main_kb())
+@dp.callback_query_handler(settings_cb.filter(menu='region'))
+async def edit_region(call: types.CallbackQuery):
+    await call.message.answer("Viloyatingizni tanlang", reply_markup=get_region_ikb())
 
+# regionni saqlash uchun start.py faylidagi save_region funksiyasi ishga tushadi
+
+@dp.callback_query_handler(settings_cb.filter(menu='university'))
+async def edit_university(call: types.CallbackQuery):
+    pass

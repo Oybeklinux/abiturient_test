@@ -10,7 +10,7 @@ admins = [
 ]
 
 managers = [
-    57018741
+    57018741, 1173655735
 ]
 
 ip = os.getenv("ip")

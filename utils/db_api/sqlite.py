@@ -5,17 +5,16 @@ class Database:
 
     def __init__(self, path_to_db="data/main.db"):
         self.db = path_to_db
+        self.create_table_regions()
+        self.create_table_universities()
+        self.create_table_subjects()
         self.create_table_users()
-        self.create_table_courses()
-        self.create_table_open_lessons()
-        self.create_table_open_lesson_users()
-
 
     @property
     def connection(self):
         return sqlite3.connect(self.db)
 
-    def execute(self, sql:str, parameters: tuple = tuple(), fetchone=False,
+    def execute(self, sql: str, parameters: tuple = tuple(), fetchone=False,
                 fetchall=False, commit=False):
 
         connection = self.connection
@@ -49,76 +48,68 @@ _______________________________________
         CREATE TABLE IF NOT EXISTS users(
         id INTEGER PRIMARY KEY AUTOINCREMENT, 
         name varchar(255) NOT NULL,
-        email varchar(255),
-        language varchar(3),
-        phone varchar(20)
-        )"""
-        # 1-uzbek, 2-russian, 3-english
-        
-        self.execute(sql, commit=True)
-
-    def create_table_open_lessons(self):
-        sql = """
-        CREATE TABLE IF NOT EXISTS open_lessons(
-        id INTEGER PRIMARY KEY AUTOINCREMENT, 
-        course int,
-        date datetime,        
-        format varchar(20),  
-        language varchar(3)
+        last_logged datetime,
+        region_id integer,
+        university_id id,
+        phone varchar(20),
+        subject1 integer,
+        subject2 integer,
+        subject3 integer,
+        FOREIGN KEY(subject1) REFERENCES subjects(id),
+        FOREIGN KEY(subject2) REFERENCES subjects(id),
+        FOREIGN KEY(subject3) REFERENCES subjects(id),
+        FOREIGN KEY(region_id) REFERENCES regions(id),
+        FOREIGN KEY(university_id) REFERENCES universities(id)
         )"""
 
         self.execute(sql, commit=True)
 
-    def create_table_courses(self):
+    def create_table_subjects(self):
         sql = """
-        CREATE TABLE IF NOT EXISTS courses(
-        id INTEGER PRIMARY KEY AUTOINCREMENT, 
-        name varchar(100) NOT NULL,
-        description varchar(300),
-        language varchar(3),
-        about text,
-        career text,
-        for_whom text,
-        requirements text,
-        content text,
-        objective text,
-        price integer,
-        image varchar(300)
+        CREATE TABLE IF NOT EXISTS subjects(
+            id INTEGER PRIMARY KEY AUTOINCREMENT, 
+            name varchar(255) NOT NULL,
+            is_main boolean default 0
         )"""
+
         self.execute(sql, commit=True)
 
-    def create_table_open_lesson_users(self):
+    def create_table_regions(self):
         sql = """
-        CREATE TABLE IF NOT EXISTS open_lesson_users(
-        id INTEGER PRIMARY KEY AUTOINCREMENT, 
-        user_id int,
-        open_lesson_id int,     
-        course_name_id INTEGER,  
-        language varchar(3),                 
-        FOREIGN KEY(user_id) REFERENCES users(id),
-        FOREIGN KEY(open_lesson_id) REFERENCES open_lessons(id)
+        CREATE TABLE IF NOT EXISTS regions(
+            id INTEGER PRIMARY KEY AUTOINCREMENT, 
+            name varchar(255) NOT NULL      
+        )"""
+
+        self.execute(sql, commit=True)
+
+    def create_table_universities(self):
+        sql = """
+        CREATE TABLE IF NOT EXISTS universities(
+            id INTEGER PRIMARY KEY AUTOINCREMENT, 
+            name varchar(255) NOT NULL       
         )"""
 
         self.execute(sql, commit=True)
 
     # EXTRA FUNCTIONS
-    def format_args(self, parameters: dict):
-        sql =" AND ".join(
-            [f"{param} = ?" for param in parameters]
+    def format_args(self, parameters: dict, prefix=''):
+        sql = " AND ".join(
+            [f"{prefix}{param} = ?" for param in parameters]
         )
         parameters = list(parameters.values())
         return sql, parameters
 
     # USERS
-    def add_user(self, id:int, name:str, email:str = None):
-        sql = """INSERT INTO users(id, name, email) VALUES(?,?,?)"""
+    def add_user(self, id: int, name: str):
+        sql = """INSERT INTO users(id, name) VALUES(?,?)"""
 
-        parameters = (id, name, email)
+        parameters = (id, name)
         self.execute(sql, parameters, commit=True)
 
     def is_user_registered(self, id):
         sql = "SELECT count(*) FROM users WHERE id=? and phone is not NULL"
-        row = self.execute(sql,(id,), fetchone=True)
+        row = self.execute(sql, (id,), fetchone=True)
         return row[0] > 0
 
     def select_all_users(self):
@@ -126,17 +117,22 @@ _______________________________________
         return self.execute(sql, fetchall=True)
 
     def select_user(self, **kwargs):
-        sql, parameters = self.format_args(kwargs)
-        sql = f"""SELECT * FROM users WHERE {sql}"""
+        sql, parameters = self.format_args(kwargs, prefix='u.')
+
+        sql = f"""SELECT u.id, u.name, u.phone, r.name, v.name, u.subject1, u.subject2
+                    FROM users u
+                    LEFT JOIN regions r ON u.region_id=r.id
+                    LEFT JOIN regions v ON u.university_id=v.id 
+                    WHERE {sql}"""
+
         return self.execute(sql, parameters=parameters, fetchone=True)
 
     def select_user_language(self, id):
         sql = f"""SELECT language FROM users WHERE id=?"""
-        row = self.execute(sql, (id, ), fetchone=True)
+        row = self.execute(sql, (id,), fetchone=True)
         if not row:
             return None
         return row[0]
-
 
     def select_count(self):
         return self.execute("""SELECT count(*) FROM users""", fetchone=True)
@@ -161,58 +157,44 @@ _______________________________________
         sql = """DELETE FROM users"""
         self.execute(sql, commit=True)
 
-    # COURSES
-    def select_course_by_name(self, user_id, name):
-        sql = """
-            SELECT id, name, description, about,career, for_whom,requirements,image 
-            FROM courses 
-            WHERE lower(name)=lower(?) and language=(select language from users where id=?)"""
-        return self.execute(sql, parameters=(name,user_id), fetchone=True)
+    # REGIONS
+    def select_regions(self):
+        sql = "SELECT id, name FROM regions"
+        return self.execute(sql, fetchall=True)
 
-    def select_course_objective(self, user_id, course):
-        sql = """
-            SELECT objective 
-            FROM courses 
-            WHERE language=(select language from users where id=?) and lower(name)=lower(?)"""
-        return self.execute(sql, parameters=(user_id, course), fetchone=True)
+    # SUBJECTS
 
-    def select_course_curriculum(self, user_id, course):
-        sql = """
-            SELECT content 
-            FROM courses 
-            WHERE language=(select language from users where id=?) and lower(name)=lower(?)"""
-        return self.execute(sql, parameters=(user_id,course), fetchone=True)
+    def select_main_subjects(self):
+        sql = 'SELECT id, name FROM subjects WHERE is_main=1'
+        return self.execute(sql, fetchall=True)
 
-    def select_courses(self, user_id, only_name=False, only_desc=False,
-                       only_about=False,
-                       inline_mode=False):
+    def select_subjects(self):
+        sql = 'SELECT id, name FROM subjects WHERE is_main=0'
+        return self.execute(sql, fetchall=True)
 
-        if only_name:
-            sql = "SELECT name FROM courses WHERE language=(select language from users where id=?)"
-            return self.execute(sql, parameters=(user_id,), fetchall=True)
-        if only_desc:
-            sql = "SELECT name, description FROM courses WHERE language=(select language from users where id=?)"
-            return self.execute(sql, parameters=(user_id,), fetchall=True)
-        if only_about:
-            sql = "SELECT about FROM courses WHERE language=(select language from users where id=?)"
-            return self.execute(sql, parameters=(user_id,), fetchall=True)
-        if inline_mode:
+    def select_subjects(self, user_id):
+        """
+        Gets id, subject name, is subject chosen by user (1 - selected by user, 0 - not selected)
+        """
+        rows = self.select_user_subjects(user_id)
 
-            sql = "SELECT id,name,image, description FROM courses WHERE language=(select language from users where id=?)"
-            return self.execute(sql, parameters=(user_id,), fetchall=True)
+        sql = """SELECT id, name, CASE  WHEN id=? or id=? THEN 1 ELSE 0 END 
+                    FROM subjects
+                    WHERE is_main=0"""
+        return self.execute(sql, parameters=(rows[0], rows[1]), fetchall=True)
 
-    # OPEN LESSONS
-    def select_open_lesson(self, course):
+    def select_user_subjects(self, user_id):
+        sql = 'SELECT subject1,subject2 FROM users WHERE id=?'
+        return self.execute(sql, parameters=(user_id,),fetchone=True)
 
-        sql = f"""  SELECT strftime('%d-%m-%Y',date) as date, strftime('%H:%M',date) as time, language
-                    FROM open_lessons
-                    WHERE lower(course) = lower(?)
-                    ORDER by date DESC
-                    LIMIT 1"""
-
-        sql = sql.replace('#condition', 'course_id=(select id from courses where name=?)')
-        return self.execute(sql, parameters=(course,), fetchone=True)
-
+    def select_chosen_subjects(self, user_id):
+        sql = """   SELECT id, name
+                    FROM subjects
+                    WHERE is_main=1 OR id in 
+                            (SELECT subject1 FROM users WHERE id=? 
+                            UNION 
+                            SELECT subject2 FROM users WHERE id=?)"""
+        return self.execute(sql, parameters=(user_id, user_id), fetchall=True)
 
 
 if __name__ == "__main__":

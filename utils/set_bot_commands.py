@@ -1,12 +1,12 @@
 from aiogram import types
 
-from data.texts import Texts
 
 
 async def set_default_commands(dp):
-        await dp.bot.set_my_commands([
-            types.BotCommand("start", Texts.get('lstart')),
-            types.BotCommand("help", Texts.get('lhelp')),
-            types.BotCommand("courses", Texts.get('lcourses')),
-            types.BotCommand("settings", Texts.get('lsettings')),
-        ])
+    await dp.bot.set_my_commands([
+        types.BotCommand("start", "Foydalanishni boshlash"),
+        types.BotCommand("buy", "Buyurtma berish"),
+        types.BotCommand("help", "Xizmat haqida"),
+        types.BotCommand("terms", "Foydalanish shartlari"),
+        types.BotCommand("support", "Biz bilan aloqa"),
+    ])
