@@ -12,20 +12,8 @@ from states.settings import EditState
 
 
 @dp.message_handler(Text(equals="✏️Profilni o'zgartirish"))
-async def profile_edit(message: types.Message):
-    await send_user_info(chat_id=message.chat.id, user_id=message.from_user.id)
-    # user_id = message.from_user.id
-    # user = db.select_user(id=user_id)
-    # universitet = user[4] if user[4] else 'Ko\'rsatilmagan'
-    # text = (f"Quyida sizning ma'lumorlaringiz keltirilgan:\n\n"
-    #         f"*Ismingiz*: {user[1]}\n"
-    #         f"*Telefoningiz*: {user[2]}\n"
-    #         f"*Viloyatingiz*: {user[3]}\n"
-    #         f"*Universitetingiz*: {universitet}\n\n"
-    #         f"❗️Ma'lumotlarni quyidagi tugmalar orqali o'zgartiring")
-    #
-    # await message.answer(text=text, parse_mode=ParseMode.MARKDOWN,
-    #                           reply_markup=settings_ikb)
+async def profile_edit(message: types.Message, state: FSMContext):
+    await send_user_info(chat_id=message.chat.id, user_id=message.from_user.id, state=state)
 
 
 @dp.callback_query_handler(settings_cb.filter(menu='name'))
@@ -40,8 +28,9 @@ async def update_name(message: types.Message, state:FSMContext):
     name = message.text
     user_id = message.from_user.id
     db.update_user(id=user_id, name=name)
-    await send_user_info(chat_id=message.chat.id, user_id=message.from_user.id)
-    await state.finish()
+
+    await send_user_info(chat_id=message.chat.id, user_id=message.from_user.id, state=state)
+    await state.reset_state(with_data=False)
 
 
 @dp.callback_query_handler(settings_cb.filter(menu='phone'))
@@ -55,8 +44,8 @@ async def save_contact(message: types.Message, state:FSMContext):
     phone_number = message.contact.phone_number
     user_id = message.from_user.id
     db.update_user(id=user_id, phone=phone_number)
-    await send_user_info(chat_id=message.chat.id, user_id=message.from_user.id)
-    await state.finish()
+    await send_user_info(chat_id=message.chat.id, user_id=message.from_user.id, state=state)
+    await state.reset_state(with_data=False)
 
 
 @dp.callback_query_handler(settings_cb.filter(menu='region'))
@@ -64,6 +53,13 @@ async def edit_region(call: types.CallbackQuery):
     await call.message.answer("Viloyatingizni tanlang", reply_markup=get_region_ikb())
 
 # regionni saqlash uchun start.py faylidagi save_region funksiyasi ishga tushadi
+
+
+@dp.message_handler(Text(equals='🛠 Texnik yordam'))
+async def update_name(message: types.Message):
+    text = "Kontaktlar:\n+99897 123-45-67"
+    await message.answer(text=text)
+
 
 @dp.callback_query_handler(settings_cb.filter(menu='university'))
 async def edit_university(call: types.CallbackQuery):

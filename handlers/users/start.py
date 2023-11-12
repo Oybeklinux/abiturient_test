@@ -6,16 +6,19 @@ from aiogram.dispatcher.filters import Text
 from aiogram.dispatcher.filters.builtin import CommandStart
 from aiogram.types import ContentType, ReplyKeyboardRemove, ParseMode
 from keyboards import contact_kb
-from keyboards.default.main import main_kb
+from keyboards.default.main import main_kb, extra_kb
 from keyboards.default.register import register_kb, register2_kb
 from keyboards.inline.regions import region_cb, get_region_ikb
 from keyboards.inline.settings import settings_cb, settings_ikb
 from loader import dp, db, bot
+from states.menu_state import MenuState
 from states.register_state import RegisterState
 
 
-@dp.message_handler(CommandStart(), state=None)
-async def bot_start(message: types.Message):
+@dp.message_handler(CommandStart())
+async def bot_start(message: types.Message, state: FSMContext):
+
+    await state.update_data(menu_level=1)
     user_id = message.from_user.id
     try:
         db.add_user(id=user_id, name=message.from_user.full_name)
@@ -24,8 +27,10 @@ async def bot_start(message: types.Message):
 
     text = f"Assalomu alaykum, {message.from_user.full_name}.\"Kelajagim\" botiga hush kelibsiz. Shu yerdan o'z kelajagingizga ilk qadamni tashlaysiz. \n*Alloh omadingizni bersin!*"
     user = db.select_user(id=user_id)
+    # subject2 - subjects are selected
     if user[6]:
         await message.answer(text, parse_mode=ParseMode.MARKDOWN, reply_markup=main_kb)
+    # u.phone - registered
     elif user[2]:
         await message.answer(text, parse_mode=ParseMode.MARKDOWN, reply_markup=register2_kb)
     else:
@@ -46,8 +51,9 @@ async def save_contact(message: types.Message, state:FSMContext):
     user_id = message.from_user.id
 
     if db.is_user_registered(user_id):
-        await message.answer(text="Telefon raqamingiz muvaffaqiyarli o'zgartirildi", reply_markup=get_settings_kb())
-        await state.finish()
+        await message.answer(text="Telefon raqamingiz muvaffaqiyatli o'zgartirildi", reply_markup=settings_ikb)
+        await state.reset_state()
+        print(state.get_data())
     else:
         await message.answer(text="Ism, sharifingiz va otangizni ismini bittada kiriting", reply_markup=ReplyKeyboardRemove())
         await RegisterState.FIO.set()
@@ -60,23 +66,30 @@ async def save_name(message: types.Message, state: FSMContext):
 
     user_id = message.from_user.id
     db.update_user(id=user_id, name=message.text)
-    await state.finish()
+    await state.reset_state()
 
 
 @dp.callback_query_handler(region_cb.filter())
-async def save_region(call: types.CallbackQuery):
+async def save_region(call: types.CallbackQuery, state: FSMContext):
     region = region_cb.parse(call.data)['region']
     db.update_user(id=call.from_user.id, region_id=region)
     await call.answer('')
-    await send_user_info(chat_id=call.message.chat.id, user_id=call.from_user.id)
+    await send_user_info(chat_id=call.message.chat.id, user_id=call.from_user.id, state=state)
 
 
-async def send_user_info(chat_id, user_id):
+async def send_user_info(chat_id, user_id, state=None):
     user = db.select_user(id=user_id)
     universitet = user[4] if user[4] else 'Ko\'rsatilmagan'
 
-    await bot.send_message(chat_id=chat_id, text='Ma\'lumotlaringiz: ', parse_mode=ParseMode.MARKDOWN,
+    data = await state.get_data()
+    level = data['menu_level'] if data and 'menu_level' in data else None
+    print(level)
+    if level is None:
+        await bot.send_message(chat_id=chat_id, text='Ma\'lumotlaringiz: ', parse_mode=ParseMode.MARKDOWN,
                            reply_markup=register2_kb)
+    elif level == 1:
+        await bot.send_message(chat_id=chat_id, text='Ma\'lumotlaringiz: ', parse_mode=ParseMode.MARKDOWN,
+                               reply_markup=extra_kb)
     text = (f"*Ismingiz*: {user[1]}\n"
             f"*Telefoningiz*: {user[2]}\n"
             f"*Viloyatingiz*: {user[3]}\n"

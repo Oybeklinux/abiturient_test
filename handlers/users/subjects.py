@@ -1,4 +1,5 @@
 from aiogram import types
+from aiogram.dispatcher import FSMContext
 from aiogram.dispatcher.filters import Text
 
 from keyboards.default.main import main_kb
@@ -7,14 +8,17 @@ from keyboards.inline.subjects import get_subject_ikb, subject_cb
 from loader import dp, db
 
 
-@dp.message_handler(Text(equals="✔️Fanlarni tanlash"))
-async def select_subjects(message: types.Message):
+@dp.message_handler(Text(equals="✔ Fanlarni tanlash"))
+async def select_subjects(message: types.Message, state:FSMContext):
     user_id=message.from_user.id
     text = f"Majburiy fanlar\n"
-    rows = db.select_main_subjects()
+    rows = db.select_subjects(is_main=True)
     main_subjects = [f'\t- {row[1]}' for row in rows]
     text += '\n'.join(main_subjects)
-    await message.answer(text=text, reply_markup=select_subject_confirm_kb)
+    data = await state.get_data()
+    level = data['menu_level'] if data and 'menu_level' in data else None
+    if level is None:
+        await message.answer(text=text, reply_markup=select_subject_confirm_kb)
     await message.answer(text="Qo'shimcha 2 fanlarni tanlang:", reply_markup=get_subject_ikb(user_id=user_id))
 
 
@@ -22,7 +26,7 @@ async def select_subjects(message: types.Message):
 async def select_subject(call:types.CallbackQuery):
     subject_id = int(subject_cb.parse(call.data)['subject'])
     user_id = call.from_user.id
-    user_subjects = db.select_user_subjects(user_id)
+    user_subjects = db.select_2_subjects(user_id)
     print(user_subjects[1], subject_id)
     print(type(user_subjects[1]), type(subject_id))
 

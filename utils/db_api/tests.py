@@ -1,8 +1,18 @@
-from utils.db_api.sqlite import Database
+from utils.db_api.sqlite import Database, Test, TestItem
+
+db = Database("temp")
 
 
+def test_test():
+    question = TestItem(text='Kubning ostki asosidagi tomonlarining o‘rtalari ketma - ket tutashtirildi. Hosil bo‘lgan to‘rtburchakning uchlari kub ustki asosining markazi bilan tutashtirildi. Agar kubning qirrasi a ga teng bo‘lsa, hosil bo‘lgan piramidaning to‘la sirtini toping.')
+    answer1 = TestItem(image='https://telegra.ph/file/5ba3115f9c88bdc9c23c0.png')
+    answer2 = TestItem(image='https://telegra.ph/file/1fa04cbc207bd1e4021d1.png')
+    answer3 = TestItem(image='https://telegra.ph/file/1fa04cbc207bd1e4021d1.png')
+    answer4 = TestItem(image='https://telegra.ph/file/b4af0d186948c734dd09d.png')
 
-db = Database()
+    test = Test(question, answer1=answer1, answer2=answer2, answer3=answer3,
+                answer4=answer4)
+    db.insert_test(test)
 
 
 def test():
@@ -21,4 +31,4 @@ def test():
     user = db.select_user(id=2)
     print(f"Tanlangan user: {user}")
 
-test()
+test_test()

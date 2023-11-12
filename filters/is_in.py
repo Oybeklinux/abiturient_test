@@ -1,14 +1,17 @@
 from aiogram.dispatcher.filters import Filter
 from aiogram.types import Message
-from data.texts import Texts
+
+from loader import db
 
 
 class IsIn(Filter):
 
-    def __init__(self, my_text: str) -> None:
-        # get uz,ru,en translations
-        self.my_text = Texts().get_list(my_text)
+    subjects = None
+
+    def __init__(self) -> None:
+        if not IsIn.subjects:
+            IsIn.subjects = [f"📚 {row[1]}" for row in db.select_subjects()]
 
     async def check(self, message: Message):
         # check if text is in the list
-        return message.text in self.my_text
+        return message.text in IsIn.subjects
