@@ -6,7 +6,6 @@ from data import config
 from utils import Database
 
 
-
 bot = Bot(token=config.BOT_TOKEN, parse_mode=types.ParseMode.HTML)
 storage = MemoryStorage()
 dp = Dispatcher(bot, storage=storage)

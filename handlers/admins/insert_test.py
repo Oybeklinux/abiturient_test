@@ -6,7 +6,7 @@ from aiogram.types import ParseMode
 from filters.is_private import IsAdmin
 from handlers.users.uploader import message_upload, ALLOWED_CONTENT_TYPES
 from keyboards.inline.subjects import get_test_subject_ikb, test_subject_cb
-from keyboards.inline.tests import test_cb, get_test_ikb, get_test_ikb2
+from keyboards.inline.tests import test_cb, get_test_ikb
 from loader import dp, bot, db
 
 
