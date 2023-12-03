@@ -1,4 +1,5 @@
 from datetime import datetime
+from typing import Union
 
 from aiogram import types
 from aiogram.dispatcher import FSMContext
@@ -61,7 +62,7 @@ async def exam_start(message: types.Message, state: FSMContext):
     #     print('3')
 
 
-async def send_exam_report(message: types.Message, exam_id, start_datetime: [str | datetime]):
+async def send_exam_report(message: types.Message, exam_id, start_datetime: Union[str, datetime]):
     rows = db.select_exam_report(exam_id)
     print(rows)
     if type(start_datetime) is datetime:

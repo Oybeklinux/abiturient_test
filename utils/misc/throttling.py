@@ -1,4 +1,5 @@
 from contextlib import suppress
+from typing import Optional
 
 from aiogram.dispatcher import FSMContext
 from aiogram.dispatcher.handler import CancelHandler
@@ -8,7 +9,7 @@ from aiogram.utils.exceptions import MessageCantBeEdited, MessageToEditNotFound
 
 
 async def edit_message(message: Message, text: str,
-                       reply_markup: InlineKeyboardMarkup | None = None,
+                       reply_markup: Optional[InlineKeyboardMarkup] = None,
                        disable_web_page_preview: bool = None) -> Message:
     with suppress(MessageCantBeEdited, MessageToEditNotFound):
         return await message.edit_text(
