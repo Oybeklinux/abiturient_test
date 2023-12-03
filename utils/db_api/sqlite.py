@@ -46,6 +46,7 @@ class Database:
         self.create_table_subjects()
         self.create_table_users()
         self.create_table_tests()
+        self.create_table_exam()
         self.create_table_test_results()
         self.create_table_test_report()
 
@@ -64,6 +65,7 @@ class Database:
         data = None
         if commit:
             connection.commit()
+            return cursor.lastrowid
 
         if fetchone:
             data = cursor.fetchone()
@@ -120,25 +122,44 @@ _______________________________________
             subject_id INTEGER,
             user_id INTEGER,
             test_id INTEGER,
+            exam_id INTEGER,
             answers varchar(30),
+            right_answers varchar(30),
             score INTEGER,
-            answered_date TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+            duration INTEGER DEFAULT 0,
             FOREIGN KEY(subject_id) REFERENCES subjects(id),
+            FOREIGN KEY(exam_id) REFERENCES exam(id),
             FOREIGN KEY(user_id) REFERENCES users(id),
-            FOREIGN KEY(test_id) REFERENCES tests(id)
+            FOREIGN KEY(test_id) REFERENCES tests(id),
+            UNIQUE(test_id, exam_id) ON CONFLICT REPLACE
         )"""
 
         self.execute(sql, commit=True)
 
     def create_table_test_report(self):
         sql = """
-       CREATE TABLE IF NOT EXISTS test_report(
+       CREATE TABLE IF NOT EXISTS exam_report(
             id integer PRIMARY KEY AUTOINCREMENT,
             subject_id INTEGER NOT NULL,
-            user_id INTEGER NOT NULL,
+            exam_id INTEGER NOT NULL,
             score INTEGER NOT NULL,
-            answered_date TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+            total_num INTEGER NOT NULL,
+            wrong_answers INTEGER NOT NULL,
+            right_answers INTEGER NOT NULL,
+            null_answers INTEGER NOT NULL,
             FOREIGN KEY(subject_id) REFERENCES subjects(id),
+            FOREIGN KEY(exam_id) REFERENCES exam(id)
+        )"""
+
+        self.execute(sql, commit=True)
+
+    def create_table_exam(self):
+        sql = """
+       CREATE TABLE IF NOT EXISTS exam(
+            id integer PRIMARY KEY AUTOINCREMENT,
+            user_id INTEGER NOT NULL,
+            score INTEGER,
+            answered_date TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
             FOREIGN KEY(user_id) REFERENCES users(id)
         )"""
 
@@ -311,6 +332,30 @@ _______________________________________
         sql = 'SELECT subject1,subject2 FROM users WHERE id=?'
         return self.execute(sql, parameters=(user_id,), fetchone=True)
 
+    # EXAM REPORT
+    def save_exam_report(self, exam_id):
+        sql = """INSERT INTO exam_report(subject_id,exam_id,score,total_num,right_answers,wrong_answers,null_answers)
+                SELECT t.subject_id, ? , sum(score), count(*) [total],sum(r.answers = right_answers) [is_correct],sum(r.answers <> right_answers) [is_wrong],sum(r.answers is NULL) [is_null]
+                FROM tests t
+                LEFT JOIN (SELECT * FROM test_results WHERE exam_id=81) r on r.test_id=t.id
+                GROUP BY t.subject_id
+                """
+        self.execute(sql, parameters=(exam_id,), commit=True)
+
+    def select_exam_report(self, exam_id):
+        sql = """SELECT e.id,e.subject_id, s.name,e.exam_id,e.score,e.total_num,e.right_answers,e.wrong_answers,e.null_answers
+                    FROM exam_report e
+                    LEFT JOIN subjects s on s.id=e.subject_id
+                    WHERE exam_id=?"""
+        return self.execute(sql, parameters=(exam_id,),fetchall=True)
+
+    def select_all_exam(self):
+        user_id = User.get_current().id
+        sql = """SELECT id, user_id,answered_date
+                FROM exam
+                WHERE user_id=?"""
+        return self.execute(sql, parameters=(user_id,), fetchall=True)
+
     # TESTS
     def insert_test(self, test):
         subject_id = test['subject_id']
@@ -321,14 +366,69 @@ _______________________________________
         a2 = json.dumps(test['a2']) if test['a2'] else None
         a3 = json.dumps(test['a3']) if test['a3'] else None
         a4 = json.dumps(test['a4']) if test['a4'] else None
-        print("sql: ", sql)
-        res = self.execute(sql, parameters=(subject_id, q, a1, a2, a3, a4), commit=True)
-        print(res)
+        self.execute(sql, parameters=(subject_id, q, a1, a2, a3, a4), commit=True)
 
-    def select_tests(self, subject_id, tests_done: str = ""):
+    def select_tests(self, subject_id, tests_done: str = "-1"):
         sql = f"SELECT * FROM tests WHERE subject_id=? and id not in ({tests_done.strip(',')})"
-        print(subject_id, sql)
         return self.execute(sql, parameters=(subject_id,), fetchall=True)
+
+    def select_test(self, test_id):
+        sql = f"SELECT id,subject_id,question,answer1,answer2,answer3,answer4 FROM tests WHERE id=?"
+
+        row = self.execute(sql, parameters=(test_id,), fetchone=True)
+        return {
+            'id': row[0],
+            'q': json.loads(row[2]),
+            'a1': json.loads(row[3]),
+            'a2': json.loads(row[4]),
+            'a3': json.loads(row[5]),
+            'a4': json.loads(row[6]),
+        }
+
+    # TEST RESULT
+    def insert_test_result(self, data):
+        user_id = User.get_current().id
+        subject_id = data['subject_id']
+        exam_id = data['exam_id']
+        test_id = data['current']['id']
+        answers = ','.join(sorted(data['answered'][test_id]))
+        right_answers = ','.join(sorted(data['questions'][test_id]))
+        # if true - 100 else 0
+        score = 0
+        # account points for multiple choices
+        point = 1 / len(data['questions'][test_id])
+        for user_answer in data['answered'][test_id]:
+            if user_answer in data['answered'][test_id]:
+                score += point
+
+        sql = "INSERT INTO test_results(exam_id, subject_id, user_id, test_id,answers,right_answers,score) " \
+              "VALUES(?,?,?,?,?,?,?)"
+        return self.execute(sql, parameters=(exam_id, subject_id, user_id, test_id, answers, right_answers, score),
+                            commit=True)
+
+    # USER TEST
+    def begin_exam(self):
+        user_id = User.get_current().id
+        sql = "INSERT INTO exam(user_id) VALUES(?)"
+        return self.execute(sql, parameters=(user_id,), commit=True)
+    # EXAM REPORT
+
+    # def insert_test_result(self, data):
+    #     user_id = User.get_current().id
+    #     subject_id = data['subject_id']
+    #     test_id = data['current']['id']
+    #     answers = ','.join(data['answered'][test_id])
+    #     # if true - 100 else 0
+    #     score = 100
+    #     if len(data['questions'][test_id]) == len(data['answered'][test_id]):
+    #         for right_answer in data['questions'][test_id]:
+    #             if right_answer not in data['answered'][test_id]:
+    #                 score = 0
+    #                 break
+    #     else: score = 0
+    #     sql = "INSERT INTO test_results(subject_id, user_id, test_id,answers,score) " \
+    #           "VALUES(?,?,?,?,?)"
+    #     return self.execute(sql, parameters=(subject_id, user_id, test_id, answers, score), commit=True)
 
 
 if __name__ == "__main__":

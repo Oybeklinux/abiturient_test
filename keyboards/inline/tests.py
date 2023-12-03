@@ -1,6 +1,8 @@
 from aiogram.types import InlineKeyboardMarkup, InlineKeyboardButton
 from aiogram.utils.callback_data import CallbackData
 
+from loader import db
+
 test_cb = CallbackData('tests_menu', 'what', 'mtype')
 
 
@@ -24,7 +26,6 @@ def get_test_ikb2():
 
 
 def get_answer_sign(data, which_answer):
-
     try:
         if data[which_answer]['correct']:
             return '✅'
@@ -38,8 +39,7 @@ def get_test_ikb(data=None):
     a2 = get_answer_sign(data, 'a2') + " B"
     a3 = get_answer_sign(data, 'a3') + " C"
     a4 = get_answer_sign(data, 'a4') + " D"
-    print("data:", data)
-    print("a1:", a1)
+
     return InlineKeyboardMarkup(
         inline_keyboard=[
             [
@@ -98,3 +98,47 @@ def get_test_ikb(data=None):
             # ]
         ],
     )
+
+
+test_answer_cb = CallbackData('tests_answer_menu', 'option')
+
+
+def get_question_options(selected_options=[]):
+    a1 = '✅ A' if 'a1' in selected_options else 'A'
+    a2 = '✅ B' if 'a2' in selected_options else 'B'
+    a3 = '✅ C' if 'a3' in selected_options else 'C'
+    a4 = '✅ D' if 'a4' in selected_options else 'D'
+
+    return InlineKeyboardMarkup(
+        inline_keyboard=[
+            [
+                InlineKeyboardButton(text=a1, callback_data=test_answer_cb.new(option='a1')),
+                InlineKeyboardButton(text=a2, callback_data=test_answer_cb.new(option='a2')),
+                InlineKeyboardButton(text=a3, callback_data=test_answer_cb.new(option='a3')),
+                InlineKeyboardButton(text=a4, callback_data=test_answer_cb.new(option='a4'))
+            ]
+        ]
+    )
+
+
+exam_list_cb = CallbackData('exam_list', 'exam_id', 'start_date')
+
+
+def get_exam_list_ikb():
+    inline_keyboard = []
+    rows = db.select_all_exam()
+    for row in rows:
+        inline_keyboard.append(
+            [InlineKeyboardButton(text=str(row[2]),
+                                  callback_data=exam_list_cb.new(exam_id=row[0],
+                                                                 start_date=row[2].replace(':', '_')))]
+        )
+
+    return InlineKeyboardMarkup(
+        inline_keyboard=inline_keyboard
+    )
+    # for row in rows:
+    #     inline_keyboard.append(
+    #         [InlineKeyboardButton(text=f"🗓 {row[2]}", callback_data=exam_list_cb.new(exam_id=row[0], start_date=row[2]))],
+    #     )
+    # return InlineKeyboardMarkup(row_width=2, inline_keyboard=inline_keyboard)
